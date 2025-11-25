@@ -1,9 +1,96 @@
-import example.pepita
+import pdefoni.*
+import consumo.*
+import packs.*
 
-describe "group of tests for pepita" {
+const consumoLlamada = new ConsumoLlamada(segundos = 150)
+const consumoLlamadaLarga = new ConsumoLlamada(segundos = 99999)
+const consumoInternet = new ConsumoInternet(cantidadMB = 5)
+const packMBLibres = new MBsLibres(cantidad = 10)
+const packCredito = new Credito(cantidad = 50)
+const packLlamadasGratisVencido = new LlamadasGratis(vigencia = new Vencimiento(fecha = new Date().minusDays(1)))
+const linea = new Linea()
 
-  test "pepita has initial energy" {
-    assert.equals(100, pepita.energy())
-  }
+describe "Consumos" {
 
+	test "llamadas" {
+		assert.equals(6.50, consumoLlamada.costo())
+	}
+
+	test "MB internet" {
+		assert.equals(0.5, consumoInternet.costo())
+	}
+
+}
+
+
+describe "packs" {
+
+
+	test "credito puede satisfacer consumo de llamada" {
+		assert.that(packCredito.puedeSatisfacer(consumoLlamada))	
+	}
+
+	test "credito puede satisfacer consumo de internet" {
+		assert.that(packCredito.puedeSatisfacer(consumoInternet))
+	}
+	
+	test "MB libres no puede satisfacer consumo de internet" {
+		assert.notThat(packMBLibres.puedeSatisfacer(consumoLlamada))
+	}
+	
+	test "MB libres puede satisfacer consumo de internet" {
+		assert.that(packMBLibres.puedeSatisfacer(consumoInternet))
+	}
+	
+	test "pack vencido no puede satisfacer consumo" {
+		assert.notThat(packLlamadasGratisVencido.puedeSatisfacer(consumoLlamada))
+	}
+
+	test "pack gastado no puede satisfacer consumo" {
+		packMBLibres.consumir(consumoInternet)
+		packMBLibres.consumir(consumoInternet)
+		assert.notThat(packMBLibres.puedeSatisfacer(consumoInternet))
+	}
+}
+
+describe "lineas"{
+	fixture {
+		[packCredito, packMBLibres, packLlamadasGratisVencido].forEach({pack =>			
+			linea.agregarPack(pack)
+		})		
+	}
+	
+	test "puede realizar un consumo de internet" {
+		assert.that(linea.puedeRealizarConsumo(consumoInternet))
+	}
+	
+	test "no puede realizar un consumo de llamada" {
+		assert.notThat(linea.puedeRealizarConsumo(consumoLlamadaLarga))
+	}
+	
+	test "consumo de internet gasta MB" {
+		linea.realizarConsumo(consumoInternet)
+		assert.equals(5, packMBLibres.remanente())
+	}
+	
+	test "consumo de llamada gasta credito" {
+		linea.realizarConsumo(consumoLlamada)
+		assert.equals(47, packCredito.remanente())
+	}
+	
+	test "falla al querer realizar consumo" {
+		assert.throwsException({ linea.realizarConsumo(consumoLlamadaLarga) })
+	}
+	
+	test "suma deuda por consumo no cubierto por los packs" {
+		linea.tipoLinea(black)
+		linea.realizarConsumo(consumoLlamadaLarga)
+		assert.that(linea.deuda() > 0)
+	}
+	
+	test "no pasa nada no cubierto por los packs" {
+		linea.tipoLinea(platinum)
+		linea.realizarConsumo(consumoLlamadaLarga)
+		assert.equals(0, linea.deuda())
+	}
 }
